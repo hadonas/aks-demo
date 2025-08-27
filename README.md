@@ -69,13 +69,33 @@ CREATE TABLE messages (
 - MYSQL_HOST: MariaDB 호스트
 - MYSQL_USER: MariaDB 사용자
 - MYSQL_PASSWORD: MariaDB 비밀번호
-- REDIS_HOST: Redis 호스트
+- REDIS_HOST: Redis 마스터 호스트 (redis-master.default.svc.cluster.local)
+- REDIS_REPLICA_HOST: Redis 복제본 호스트 (redis-replicas.default.svc.cluster.local)
 - REDIS_PASSWORD: Redis 비밀번호
 - KAFKA_SERVERS: Kafka 서버
 - KAFKA_USERNAME: Kafka 사용자
 - KAFKA_PASSWORD: Kafka 비밀번호
 - FLASK_SECRET_KEY: Flask 세션 암호화 키
 ```
+
+## CI/CD 파이프라인
+
+이 프로젝트는 GitHub Actions를 사용하여 Azure Container Registry(ACR)에 자동으로 빌드되고 Azure Kubernetes Service(AKS)에 배포됩니다.
+
+### 워크플로우 트리거
+- `main` 또는 `develop` 브랜치에 푸시
+- `main` 브랜치로의 Pull Request
+
+### 빌드 및 배포 과정
+1. **이미지 빌드**: Backend와 Frontend Docker 이미지를 빌드
+2. **ACR 푸시**: 빌드된 이미지를 Azure Container Registry에 푸시
+3. **AKS 배포**: 새로운 이미지를 AKS 클러스터에 자동 배포
+
+### Redis 연결
+- **읽기/쓰기**: `redis-master.default.svc.cluster.local:6379`
+- **읽기 전용**: `redis-replicas.default.svc.cluster.local:6379`
+
+자세한 설정 방법은 [GITHUB_SECRETS_SETUP.md](GITHUB_SECRETS_SETUP.md)를 참조하세요.
 
 ## 보안 기능
 - 비밀번호 해시화 저장

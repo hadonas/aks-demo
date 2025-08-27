@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: giglepeople/aks-test-app-backend:latest
+        image: ${ACR_REGISTRY}/aks-demo-backend:latest
         # imagePullPolicy: Never
         ports:
         - containerPort: 5000
@@ -30,7 +30,9 @@ spec:
               name: backend-secrets
               key: MYSQL_PASSWORD
         - name: REDIS_HOST
-          value: "my-redis-master"
+          value: "redis-master.default.svc.cluster.local"
+        - name: REDIS_REPLICA_HOST
+          value: "redis-replicas.default.svc.cluster.local"
         - name: KAFKA_SERVERS
           value: "my-kafka:9092"
         - name: REDIS_PASSWORD

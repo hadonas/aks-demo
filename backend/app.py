@@ -27,10 +27,20 @@ def get_db_connection():
         connect_timeout=30
     )
 
-# Redis 연결 함수
+# Redis 연결 함수 (읽기/쓰기용)
 def get_redis_connection():
     return redis.Redis(
-        host=os.getenv('REDIS_HOST', 'my-redis-master'),
+        host=os.getenv('REDIS_HOST', 'redis-master.default.svc.cluster.local'),
+        port=6379,
+        password=os.getenv('REDIS_PASSWORD'),
+        decode_responses=True,
+        db=0
+    )
+
+# Redis 읽기 전용 연결 함수
+def get_redis_readonly_connection():
+    return redis.Redis(
+        host=os.getenv('REDIS_REPLICA_HOST', 'redis-replicas.default.svc.cluster.local'),
         port=6379,
         password=os.getenv('REDIS_PASSWORD'),
         decode_responses=True,
@@ -142,11 +152,11 @@ def get_from_db():
             async_log_api_stats('/db/messages', 'GET', 'error', session['user_id'])
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Redis 로그 조회
+# Redis 로그 조회 (읽기 전용 복제본 사용)
 @app.route('/logs/redis', methods=['GET'])
 def get_redis_logs():
     try:
-        redis_client = get_redis_connection()
+        redis_client = get_redis_readonly_connection()
         logs = redis_client.lrange('api_logs', 0, -1)
         redis_client.close()
         return jsonify([json.loads(log) for log in logs])
