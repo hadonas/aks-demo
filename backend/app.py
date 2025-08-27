@@ -9,23 +9,61 @@ from kafka import KafkaProducer, KafkaConsumer
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from threading import Thread
+import logging
+import sys
+import traceback
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # 세션을 위한 credentials 지원
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # 세션을 위한 시크릿 키
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# 환경변수 디버깅 출력
+logger.info("=== 환경변수 확인 ===")
+logger.info(f"MARIADB_HOST: {os.getenv('MARIADB_HOST', 'NOT_SET')}")
+logger.info(f"MARIADB_USER: {os.getenv('MARIADB_USER', 'NOT_SET')}")
+logger.info(f"MARIADB_PASSWORD: {'****' if os.getenv('MARIADB_PASSWORD') else 'NOT_SET'}")
+logger.info(f"REDIS_HOST: {os.getenv('REDIS_HOST', 'NOT_SET')}")
+logger.info(f"KAFKA_SERVERS: {os.getenv('KAFKA_SERVERS', 'NOT_SET')}")
+logger.info("===================")
 
 # # 스레드 풀 생성
 # thread_pool = ThreadPoolExecutor(max_workers=5)
 
 # MariaDB 연결 함수
 def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv('MYSQL_HOST', 'my-mariadb'),
-        user=os.getenv('MYSQL_USER', 'testuser'),
-        password=os.getenv('MYSQL_PASSWORD'),
-        database="testdb",
-        connect_timeout=30
-    )
+    try:
+        logger.info("=== MariaDB 연결 시도 ===")
+        host = os.getenv('MARIADB_HOST', 'my-mariadb')
+        user = os.getenv('MARIADB_USER', 'testuser')
+        password = os.getenv('MARIADB_PASSWORD')
+        database = "testdb"
+        
+        logger.info(f"연결 정보: host={host}, user={user}, database={database}")
+        
+        connection = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            port=3306,
+            database=database,
+            connect_timeout=30
+        )
+        logger.info("MariaDB 연결 성공!")
+        return connection
+    except Exception as e:
+        logger.error(f"MariaDB 연결 실패: {str(e)}")
+        logger.error(f"연결 시도한 정보: host={host}, user={user}, database={database}")
+        raise e
 
 # Redis 연결 함수 (읽기/쓰기용)
 def get_redis_connection():
@@ -166,25 +204,40 @@ def get_redis_logs():
 # 회원가입 엔드포인트
 @app.route('/register', methods=['POST'])
 def register():
+    logger.info("=== 회원가입 요청 시작 ===")
     try:
         data = request.json
+        logger.info(f"요청 데이터: {data}")
+        
         username = data.get('username')
         password = data.get('password')
         
+        logger.info(f"사용자명: {username}")
+        
         if not username or not password:
+            logger.warning("사용자명 또는 비밀번호가 누락됨")
             return jsonify({"status": "error", "message": "사용자명과 비밀번호는 필수입니다"}), 400
             
         # 비밀번호 해시화
+        logger.info("비밀번호 해시화 중...")
         hashed_password = generate_password_hash(password)
         
+        logger.info("데이터베이스 연결 시도...")
         db = get_db_connection()
         cursor = db.cursor()
         
+        logger.info("사용자명 중복 체크...")
         # 사용자명 중복 체크
         cursor.execute("SELECT username FROM users WHERE username = %s", (username,))
-        if cursor.fetchone():
+        existing_user = cursor.fetchone()
+        
+        if existing_user:
+            logger.warning(f"중복된 사용자명: {username}")
+            cursor.close()
+            db.close()
             return jsonify({"status": "error", "message": "이미 존재하는 사용자명입니다"}), 400
         
+        logger.info("새 사용자 데이터 삽입 중...")
         # 사용자 정보 저장
         sql = "INSERT INTO users (username, password) VALUES (%s, %s)"
         cursor.execute(sql, (username, hashed_password))
@@ -192,8 +245,19 @@ def register():
         cursor.close()
         db.close()
         
+        logger.info(f"회원가입 성공: {username}")
         return jsonify({"status": "success", "message": "회원가입이 완료되었습니다"})
+        
+    except mysql.connector.Error as db_error:
+        logger.error(f"데이터베이스 오류: {str(db_error)}")
+        logger.error(f"오류 코드: {db_error.errno}")
+        logger.error(f"SQL 상태: {getattr(db_error, 'sqlstate', 'N/A')}")
+        return jsonify({"status": "error", "message": f"데이터베이스 오류: {str(db_error)}"}), 500
+        
     except Exception as e:
+        logger.error(f"일반 오류: {str(e)}")
+        logger.error(f"오류 타입: {type(e).__name__}")
+        logger.error(f"상세 스택 트레이스: {traceback.format_exc()}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # 로그인 엔드포인트
@@ -321,6 +385,23 @@ def get_kafka_logs():
     except Exception as e:
         print(f"Kafka log retrieval error: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# 요청 로깅 미들웨어
+@app.before_request
+def log_request_info():
+    logger.info("=== 새로운 요청 ===")
+    logger.info(f"요청 방법: {request.method}")
+    logger.info(f"요청 URL: {request.url}")
+    logger.info(f"요청 경로: {request.path}")
+    logger.info(f"클라이언트 IP: {request.remote_addr}")
+    if request.is_json:
+        logger.info(f"요청 데이터: {request.get_json()}")
+
+@app.after_request
+def log_response_info(response):
+    logger.info(f"응답 상태: {response.status_code}")
+    logger.info("=== 요청 완료 ===")
+    return response
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True) 

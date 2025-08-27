@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: default
+  namespace: sungho
 spec:
   replicas: 1
   selector:
@@ -13,22 +13,24 @@ spec:
       labels:
         app: backend
     spec:
+      imagePullSecrets:
+      - name: acr-registry
       containers:
       - name: backend
-        image: ${ACR_REGISTRY}/aks-demo-backend:latest
+        image: ktech4.azurecr.io/aks-demo-backend:latest
         # imagePullPolicy: Never
         ports:
         - containerPort: 5000
         env:
-        - name: MYSQL_HOST
-          value: "my-mariadb"
-        - name: MYSQL_USER
-          value: "testuser"
-        - name: MYSQL_PASSWORD
+        - name: MARIADB_HOST
+          value: "sungho-mariadb"
+        - name: MARIADB_USER
+          value: "root"
+        - name: MARIADB_PASSWORD
           valueFrom:
             secretKeyRef:
               name: backend-secrets
-              key: MYSQL_PASSWORD
+              key: MARIADB_PASSWORD
         - name: REDIS_HOST
           value: "redis-master.default.svc.cluster.local"
         - name: REDIS_REPLICA_HOST
@@ -57,7 +59,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend-service
-  namespace: default
+  namespace: sungho
 spec:
   type: ClusterIP
   selector:
