@@ -28,7 +28,7 @@ metadata:
   name: frontend-service
   namespace: sungho
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: frontend
   ports:
