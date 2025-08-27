@@ -98,6 +98,11 @@ import axios from 'axios';
 // nginx 프록시를 통해 요청하도록 수정
 const API_BASE_URL = '/api';
 
+// axios 기본 설정
+axios.defaults.timeout = 60000; // 60초 타임아웃
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+axios.defaults.withCredentials = true;
+
 export default {
   name: 'App',
   data() {
@@ -264,11 +269,24 @@ export default {
         return;
       }
       
+      console.log('회원가입 시작:', {
+        username: this.registerUsername,
+        url: `${API_BASE_URL}/register`
+      });
+      
       try {
+        console.log('axios 요청 전송 시작...');
         const response = await axios.post(`${API_BASE_URL}/register`, {
           username: this.registerUsername,
           password: this.registerPassword
+        }, {
+          timeout: 60000,
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
+        
+        console.log('서버 응답 받음:', response);
         
         if (response.data.status === 'success') {
           alert('회원가입이 완료되었습니다. 로그인해주세요.');
@@ -276,12 +294,27 @@ export default {
           this.registerUsername = '';
           this.registerPassword = '';
           this.confirmPassword = '';
+        } else {
+          console.error('회원가입 실패 - 서버 응답:', response.data);
+          alert(response.data.message || '회원가입에 실패했습니다.');
         }
       } catch (error) {
-        console.error('회원가입 실패:', error);
-        alert(error.response && error.response.data && error.response.data.message 
-          ? error.response.data.message 
-          : '회원가입에 실패했습니다.');
+        console.error('회원가입 에러 발생:', error);
+        console.error('에러 응답:', error.response);
+        console.error('에러 요청:', error.request);
+        console.error('에러 메시지:', error.message);
+        
+        if (error.code === 'ECONNABORTED') {
+          alert('요청 시간이 초과되었습니다. 다시 시도해주세요.');
+        } else if (error.response) {
+          alert(error.response.data && error.response.data.message 
+            ? error.response.data.message 
+            : `서버 오류: ${error.response.status}`);
+        } else if (error.request) {
+          alert('서버에 연결할 수 없습니다. 네트워크를 확인해주세요.');
+        } else {
+          alert('알 수 없는 오류가 발생했습니다.');
+        }
       }
     }
   }
