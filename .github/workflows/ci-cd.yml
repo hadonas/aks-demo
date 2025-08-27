@@ -36,8 +36,6 @@ jobs:
         tags: |
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Build and push Frontend image
       uses: docker/build-push-action@v5
@@ -47,45 +45,3 @@ jobs:
         tags: |
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  deploy-to-aks:
-    needs: build-and-push-backend
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-    - name: Set AKS context
-      run: |
-        az aks get-credentials --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }} --overwrite-existing
-
-    - name: Update Kubernetes manifests
-      run: |
-        # Update backend deployment with new image
-        sed -i "s|image:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}|g" k8s/backend-deployment.yaml
-        
-        # Update frontend deployment with new image
-        sed -i "s|image:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}|g" k8s/frontend-deployment.yaml
-
-    - name: Deploy to AKS
-      run: |
-        kubectl apply -f k8s/backend-deployment.yaml
-        kubectl apply -f k8s/frontend-deployment.yaml
-        
-        # Wait for deployments to be ready
-        kubectl rollout status deployment/backend -n default --timeout=300s
-        kubectl rollout status deployment/frontend -n default --timeout=300s
-
-    - name: Verify deployment
-      run: |
-        kubectl get pods -n default
-        kubectl get services -n default
