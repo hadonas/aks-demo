@@ -28,22 +28,7 @@
       </div>
 
       <div class="container">
-        <div class="section">
-          <h2>MariaDB 메시지 관리</h2>
-          <input v-model="dbMessage" placeholder="저장할 메시지 입력">
-          <button @click="saveToDb">DB에 저장</button>
-          <button @click="getFromDb">DB에서 조회</button>
-          <button @click="insertSampleData" class="sample-btn">샘플 데이터 저장</button>
-          <div v-if="loading" class="loading-spinner">
-            <p>데이터를 불러오는 중...</p>
-          </div>
-          <div v-if="dbData.length && !loading">
-            <h3>저장된 메시지:</h3>
-            <ul>
-              <li v-for="item in dbData" :key="item.id">{{ item.message }} ({{ formatDate(item.created_at) }})</li>
-            </ul>
-          </div>
-        </div>
+
 
         <div class="section">
           <h2>Redis 로그</h2>
@@ -119,19 +104,9 @@ export default {
       password: '',
       isLoggedIn: false,
       searchQuery: '',
-      dbMessage: '',
-      dbData: [],
+
       redisLogs: [],
-      sampleMessages: [
-        '안녕하세요! 테스트 메시지입니다.',
-        'K8s 데모 샘플 데이터입니다.',
-        '마이크로서비스 테스트 중입니다.',
-        '샘플 메시지 입니다.'
-      ],
-      offset: 0,
-      limit: 20,
       loading: false,
-      hasMore: true,
       showRegister: false,
       registerUsername: '',
       registerPassword: '',
@@ -149,47 +124,7 @@ export default {
       return date.toLocaleString();
     },
     
-    // MariaDB에 메시지 저장
-    async saveToDb() {
-      try {
-        await axios.post(`${API_BASE_URL}/db/message`, {
-          message: this.dbMessage
-        });
-        this.dbMessage = '';
-        this.getFromDb();
-        this.getRedisLogs();
-      } catch (error) {
-        console.error('DB 저장 실패:', error);
-      }
-    },
 
-    // MariaDB에서 메시지 조회 (페이지네이션 적용)
-    async getFromDb() {
-      try {
-        this.loading = true;
-        const response = await axios.get(`${API_BASE_URL}/db/messages?offset=${this.offset}&limit=${this.limit}`);
-        this.dbData = response.data;
-        this.hasMore = response.data.length === this.limit;
-      } catch (error) {
-        console.error('DB 조회 실패:', error);
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    // 샘플 데이터를 DB에 저장
-    async insertSampleData() {
-      const randomMessage = this.sampleMessages[Math.floor(Math.random() * this.sampleMessages.length)];
-      try {
-        await axios.post(`${API_BASE_URL}/db/message`, {
-          message: randomMessage
-        });
-        this.getFromDb();
-        this.getRedisLogs();
-      } catch (error) {
-        console.error('샘플 데이터 저장 실패:', error);
-      }
-    },
 
     // Redis에 저장된 API 호출 로그 조회
     async getRedisLogs() {
@@ -332,11 +267,7 @@ export default {
       }
     },
 
-    // 페이지네이션을 위한 추가 데이터 로드
-    async loadMore() {
-      this.offset += this.limit;
-      await this.getFromDb();
-    },
+
 
     // 회원가입 처리
     async register() {

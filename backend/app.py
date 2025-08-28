@@ -238,10 +238,10 @@ def save_to_db():
         # 로깅
         log_to_redis('db_insert', f"Message saved: {data['message'][:30]}...")
         
-        async_log_api_stats('/db/message', 'POST', 'success', user_id)
+        async_log_api_stats('/db/message', 'POST', 'success', session.get('username', 'unknown'))
         return jsonify({"status": "success"})
     except Exception as e:
-        async_log_api_stats('/db/message', 'POST', 'error', user_id)
+        async_log_api_stats('/db/message', 'POST', 'error', session.get('username', 'unknown'))
         log_to_redis('db_insert_error', str(e))
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -258,12 +258,12 @@ def get_from_db():
         db.close()
         
         # 비동기 로깅으로 변경
-        async_log_api_stats('/db/messages', 'GET', 'success', user_id)
+        async_log_api_stats('/db/messages', 'GET', 'success', session.get('username', 'unknown'))
         
         return jsonify(messages)
     except Exception as e:
         if 'user_id' in session:
-            async_log_api_stats('/db/messages', 'GET', 'error', session['user_id'])
+            async_log_api_stats('/db/messages', 'GET', 'error', session.get('username', 'unknown'))
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # Redis 로그 조회 (읽기 전용 복제본 사용)
@@ -375,13 +375,15 @@ def login():
         db.close()
         
         if user and check_password_hash(user['password'], password):
-            session['user_id'] = username  # 세션에 사용자 정보 저장
+            session['user_id'] = user['id']  # 세션에 사용자 ID 저장
+            session['username'] = username  # 세션에 사용자명 저장
             
             # Redis 세션 저장 (선택적)
             try:
                 redis_client = get_redis_connection()
                 session_data = {
-                    'user_id': username,
+                    'user_id': user['id'],
+                    'username': username,
                     'login_time': datetime.now().isoformat()
                 }
                 redis_client.set(f"session:{username}", json.dumps(session_data))
@@ -407,10 +409,12 @@ def login():
 def logout():
     try:
         if 'user_id' in session:
-            username = session['user_id']
-            redis_client = get_redis_connection()
-            redis_client.delete(f"session:{username}")
+            username = session.get('username', '')
+            if username:
+                redis_client = get_redis_connection()
+                redis_client.delete(f"session:{username}")
             session.pop('user_id', None)
+            session.pop('username', None)
         return jsonify({"status": "success", "message": "로그아웃 성공"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -436,7 +440,7 @@ def save_message():
         cursor.close()
         db.close()
         
-        logger.info(f"메시지 저장 성공: 사용자 {user_id}, 메시지: {message_text}")
+        logger.info(f"메시지 저장 성공: 사용자 {session.get('username', 'unknown')}, 메시지: {message_text}")
         return jsonify({"status": "success", "message": "메시지가 저장되었습니다"})
         
     except Exception as e:
