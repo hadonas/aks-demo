@@ -25,7 +25,6 @@ from opentelemetry.instrumentation.mysql import MySQLInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
-from opentelemetry.instrumentation.wsgi import WSGIInstrumentor
 
 # OpenTelemetry 설정
 def setup_opentelemetry():
@@ -57,7 +56,6 @@ def setup_opentelemetry():
     RedisInstrumentor().instrument()
     LoggingInstrumentor().instrument()
     URLLib3Instrumentor().instrument()
-    WSGIInstrumentor().instrument()
     
     return tracer
 

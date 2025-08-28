@@ -62,6 +62,12 @@ log/
 .docker/
 docker-compose.override.yml
 
+# Build and Push Scripts (Local use only)
+build-and-push-backend.sh
+build-and-push-frontend.sh
+build-and-push-all.sh
+README-docker-build.md
+
 # System Files
 .DS_Store
 Thumbs.db 

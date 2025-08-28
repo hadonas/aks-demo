@@ -18,7 +18,6 @@ spec:
       containers:
       - name: backend
         image: ktech4.azurecr.io/aks-demo-backend:latest
-        # imagePullPolicy: Never
         ports:
         - containerPort: 5000
         env:

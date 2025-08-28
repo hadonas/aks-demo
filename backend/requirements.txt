@@ -13,4 +13,3 @@ opentelemetry-instrumentation-mysql
 opentelemetry-instrumentation-redis
 opentelemetry-instrumentation-logging
 opentelemetry-instrumentation-urllib3
-opentelemetry-instrumentation-wsgi

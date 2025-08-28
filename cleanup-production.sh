@@ -42,7 +42,6 @@ echo "삭제될 리소스:"
 echo "  - Backend Deployment & Service"
 echo "  - Frontend Deployment & Service"
 echo "  - Backend Secrets"
-echo "  - 네임스페이스: sungho"
 echo ""
 read -p "정말로 삭제하시겠습니까? (yes/no): " -r
 if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
