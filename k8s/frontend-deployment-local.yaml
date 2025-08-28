@@ -15,6 +15,7 @@ spec:
       containers:
       - name: frontend
         image: ghcr.io/hadonas/aks-demo-frontend:local
+        # imagePullPolicy: Never
         ports:
         - containerPort: 80
 ---
@@ -23,9 +24,10 @@ kind: Service
 metadata:
   name: frontend-service
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: frontend-local
   ports:
   - port: 80
     targetPort: 80
+    nodePort: 30080
