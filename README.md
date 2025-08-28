@@ -126,16 +126,16 @@ chmod +x deploy-local.sh cleanup-local.sh
 ### 로컬 환경 구성
 - **MariaDB**: `mariadb-local` 서비스 (포트 3306)
 - **Redis**: `redis-local` 서비스 (포트 6379)
-- **Backend**: `backend-local` 서비스 (포트 5000)
-- **Frontend**: `frontend-local` 서비스 (포트 80)
+- **Backend**: `backend-service` 서비스 (포트 5000)
+- **Frontend**: `frontend-service` 서비스 (포트 80)
 
 ### 접근 방법
 ```bash
 # 터미널 1: 프론트엔드 포트 포워딩
-kubectl port-forward service/frontend-local 8080:80
+kubectl port-forward service/frontend-service 8080:80
 
 # 터미널 2: 백엔드 포트 포워딩
-kubectl port-forward service/backend-local 5000:5000
+kubectl port-forward service/backend-service 5000:5000
 ```
 
 **브라우저에서 접근:**

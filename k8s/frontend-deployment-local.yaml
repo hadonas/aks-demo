@@ -21,9 +21,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-local
+  name: frontend-service
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: frontend-local
   ports:

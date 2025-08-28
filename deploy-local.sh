@@ -33,8 +33,8 @@ kubectl get all
 
 echo ""
 echo "🌐 접근 방법:"
-echo "Frontend: kubectl port-forward service/frontend-local 8080:80"
-echo "Backend: kubectl port-forward service/backend-local 5000:5000"
+echo "Frontend: kubectl port-forward service/frontend-service 8080:80"
+echo "Backend: kubectl port-forward service/backend-service 5000:5000"
 echo ""
 echo "포트 포워딩 후 브라우저에서:"
 echo "Frontend: http://localhost:8080"
