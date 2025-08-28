@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-local
+  template:
+    metadata:
+      labels:
+        app: redis-local
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command: ["redis-server", "--requirepass", "redispass"]
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-local
+spec:
+  type: ClusterIP
+  selector:
+    app: redis-local
+  ports:
+  - port: 6379
+    targetPort: 6379

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-local
+  template:
+    metadata:
+      labels:
+        app: backend-local
+    spec:
+      containers:
+      - name: backend
+        image: ghcr.io/hadonas/aks-demo-backend:local
+        ports:
+        - containerPort: 5000
+        env:
+        - name: MARIADB_HOST
+          value: "mariadb-local"
+        - name: MARIADB_USER
+          value: "root"
+        - name: MARIADB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets-local
+              key: MARIADB_PASSWORD
+        - name: REDIS_HOST
+          value: "redis-local"
+        - name: REDIS_REPLICA_HOST
+          value: "redis-local"
+        - name: KAFKA_SERVERS
+          value: "localhost:9092"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets-local
+              key: REDIS_PASSWORD
+        - name: KAFKA_USERNAME
+          value: "user1"
+        - name: KAFKA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets-local
+              key: KAFKA_PASSWORD
+        - name: FLASK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets-local
+              key: FLASK_SECRET_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-local
+spec:
+  type: ClusterIP
+  selector:
+    app: backend-local
+  ports:
+  - port: 5000
+    targetPort: 5000

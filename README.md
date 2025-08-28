@@ -97,6 +97,54 @@ CREATE TABLE messages (
 
 자세한 설정 방법은 [GITHUB_SECRETS_SETUP.md](GITHUB_SECRETS_SETUP.md)를 참조하세요.
 
+## 로컬 개발 환경 (Rancher Desktop)
+
+Rancher Desktop을 사용하여 로컬에서 전체 스택을 실행할 수 있습니다.
+
+### 사전 요구사항
+- Rancher Desktop 설치 및 실행
+- Kubernetes 1.28+ 활성화
+- Docker 컨테이너 런타임
+
+### 빠른 시작
+
+```bash
+# 1. 실행 권한 부여
+chmod +x deploy-local.sh cleanup-local.sh
+
+# 2. 로컬 환경 배포
+./deploy-local.sh
+
+# 3. 접근
+# Frontend: http://localhost:30080
+# Backend: kubectl port-forward service/backend-local 5000:5000
+
+# 4. 정리 (필요시)
+./cleanup-local.sh
+```
+
+### 로컬 환경 구성
+- **MariaDB**: `mariadb-local` 서비스 (포트 3306)
+- **Redis**: `redis-local` 서비스 (포트 6379)
+- **Backend**: `backend-local` 서비스 (포트 5000)
+- **Frontend**: `frontend-local` 서비스 (포트 80)
+
+### 접근 방법
+```bash
+# 터미널 1: 프론트엔드 포트 포워딩
+kubectl port-forward service/frontend-local 8080:80
+
+# 터미널 2: 백엔드 포트 포워딩
+kubectl port-forward service/backend-local 5000:5000
+```
+
+**브라우저에서 접근:**
+- Frontend: http://localhost:8080
+- Backend: http://localhost:5000
+
+### 데이터베이스 초기화
+MariaDB는 자동으로 `testdb` 데이터베이스와 필요한 테이블을 생성합니다.
+
 ## 보안 기능
 - 비밀번호 해시화 저장
 - 세션 기반 인증

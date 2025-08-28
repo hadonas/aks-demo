@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-local
+  template:
+    metadata:
+      labels:
+        app: frontend-local
+    spec:
+      containers:
+      - name: frontend
+        image: ghcr.io/hadonas/aks-demo-frontend:local
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-local
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend-local
+  ports:
+  - port: 80
+    targetPort: 80
