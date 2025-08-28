@@ -25,7 +25,7 @@ spec:
         - name: MARIADB_HOST
           value: "sungho-mariadb"
         - name: MARIADB_USER
-          value: "root"
+          value: "testuser"
         - name: MARIADB_PASSWORD
           valueFrom:
             secretKeyRef:

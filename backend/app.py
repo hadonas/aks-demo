@@ -23,7 +23,6 @@ from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.mysql import MySQLInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.kafka import KafkaInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
 from opentelemetry.instrumentation.wsgi import WSGIInstrumentor
@@ -56,7 +55,6 @@ def setup_opentelemetry():
     RequestsInstrumentor().instrument()
     MySQLInstrumentor().instrument()
     RedisInstrumentor().instrument()
-    KafkaInstrumentor().instrument()
     LoggingInstrumentor().instrument()
     URLLib3Instrumentor().instrument()
     WSGIInstrumentor().instrument()
