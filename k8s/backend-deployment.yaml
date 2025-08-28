@@ -54,6 +54,17 @@ spec:
             secretKeyRef:
               name: backend-secrets
               key: FLASK_SECRET_KEY
+        # OpenTelemetry 환경변수
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"
+        - name: OTEL_SERVICE_NAME
+          value: "aks-demo-backend"
+        - name: OTEL_SERVICE_VERSION
+          value: "1.0.0"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.name=aks-demo-backend,service.version=1.0.0,deployment.environment=production"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
 ---
 apiVersion: v1
 kind: Service

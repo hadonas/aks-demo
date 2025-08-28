@@ -13,6 +13,59 @@ import logging
 import sys
 import traceback
 
+# OpenTelemetry imports
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.instrumentation.mysql import MySQLInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.instrumentation.kafka import KafkaInstrumentor
+from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
+from opentelemetry.instrumentation.wsgi import WSGIInstrumentor
+
+# OpenTelemetry 설정
+def setup_opentelemetry():
+    # 리소스 설정
+    resource = Resource.create({
+        "service.name": "aks-demo-backend",
+        "service.version": "1.0.0",
+        "deployment.environment": os.getenv("ENVIRONMENT", "development")
+    })
+    
+    # TracerProvider 설정
+    trace.set_tracer_provider(TracerProvider(resource=resource))
+    tracer = trace.get_tracer(__name__)
+    
+    # OTLP Exporter 설정
+    otlp_exporter = OTLPSpanExporter(
+        endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"),
+        insecure=True
+    )
+    
+    # Span Processor 설정
+    span_processor = BatchSpanProcessor(otlp_exporter)
+    trace.get_tracer_provider().add_span_processor(span_processor)
+    
+    # 자동 계측 설정
+    FlaskInstrumentor().instrument()
+    RequestsInstrumentor().instrument()
+    MySQLInstrumentor().instrument()
+    RedisInstrumentor().instrument()
+    KafkaInstrumentor().instrument()
+    LoggingInstrumentor().instrument()
+    URLLib3Instrumentor().instrument()
+    WSGIInstrumentor().instrument()
+    
+    return tracer
+
+# OpenTelemetry 초기화
+tracer = setup_opentelemetry()
+
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # 세션을 위한 credentials 지원
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # 세션을 위한 시크릿 키
