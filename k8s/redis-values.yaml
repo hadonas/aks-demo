@@ -1,0 +1,26 @@
+# Redis Helm Bitnami Values
+# https://github.com/bitnami/charts/tree/main/bitnami/redis
+
+## Redis 설정
+redis:
+  auth:
+    enabled: true
+    password: "New1234!"
+  
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+    
+  replica:
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 1Gi
+
+## 서비스 설정
+service:
+  type: ClusterIP
+
+## 네임스페이스
+namespaceOverride: "sungho"

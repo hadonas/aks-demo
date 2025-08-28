@@ -1,0 +1,50 @@
+# MariaDB Helm Bitnami Values
+# https://github.com/bitnami/charts/tree/main/bitnami/mariadb
+
+## MariaDB 설정
+auth:
+  rootPassword: "MyRootPass123!"
+  database: "testdb"
+  username: "testuser"
+  password: "TestUserPass123!"
+
+## MariaDB 설정
+primary:
+  persistence:
+    enabled: false  # 테스트용으로 PVC 비활성화
+  
+  service:
+    type: ClusterIP
+  
+  # 리소스 제한 추가
+  resources:
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+
+## 초기화 스크립트
+initdbScripts:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS testdb;
+    USE testdb;
+    
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE IF NOT EXISTS messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+## 네임스페이스
+namespaceOverride: "sungho"

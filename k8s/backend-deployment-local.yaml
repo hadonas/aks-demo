@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend-local
+  namespace: sungho
 spec:
   replicas: 1
   selector:
@@ -19,32 +20,25 @@ spec:
         - containerPort: 5000
         env:
         - name: MARIADB_HOST
-          value: "mariadb-local"
+          value: "mariadb.sungho.svc.cluster.local"
         - name: MARIADB_USER
-          value: "root"
+          value: "testuser"
         - name: MARIADB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: backend-secrets-local
-              key: MARIADB_PASSWORD
+          value: "TestUserPass123!"
+        - name: MARIADB_DATABASE
+          value: "testdb"
         - name: REDIS_HOST
-          value: "redis-local"
+          value: "redis-master.sungho.svc.cluster.local"
         - name: REDIS_REPLICA_HOST
-          value: "redis-local"
+          value: "redis-replicas.sungho.svc.cluster.local"
         - name: KAFKA_SERVERS
-          value: "localhost:9092"
+          value: "kafka.sungho.svc.cluster.local:9092"
         - name: REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: backend-secrets-local
-              key: REDIS_PASSWORD
+          value: "New1234!"
         - name: KAFKA_USERNAME
-          value: "user1"
+          value: ""
         - name: KAFKA_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: backend-secrets-local
-              key: KAFKA_PASSWORD
+          value: ""
         - name: FLASK_SECRET_KEY
           valueFrom:
             secretKeyRef:
@@ -55,6 +49,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend-service
+  namespace: sungho
 spec:
   type: ClusterIP
   selector:
