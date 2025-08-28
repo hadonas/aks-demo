@@ -31,9 +31,9 @@ spec:
               name: backend-secrets
               key: MARIADB_PASSWORD
         - name: REDIS_HOST
-          value: "redis-master.default.svc.cluster.local"
+          value: "redis-master.sungho.svc.cluster.local"
         - name: REDIS_REPLICA_HOST
-          value: "redis-replicas.default.svc.cluster.local"
+          value: "redis-replicas.sungho.svc.cluster.local"
         - name: KAFKA_SERVERS
           value: "my-kafka:9092"
         - name: REDIS_PASSWORD

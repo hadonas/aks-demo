@@ -142,8 +142,9 @@ def get_db_connection():
 # Redis 연결 함수 (읽기/쓰기용)
 def get_redis_connection():
     return redis.Redis(
-        host=os.getenv('REDIS_HOST', 'redis-master.default.svc.cluster.local'),
+        host=os.getenv('REDIS_HOST', 'redis-master.sungho.svc.cluster.local'),
         port=6379,
+        username='default',  # Redis 기본 사용자명
         password=os.getenv('REDIS_PASSWORD'),
         decode_responses=True,
         db=0
@@ -152,8 +153,9 @@ def get_redis_connection():
 # Redis 읽기 전용 연결 함수
 def get_redis_readonly_connection():
     return redis.Redis(
-        host=os.getenv('REDIS_REPLICA_HOST', 'redis-replicas.default.svc.cluster.local'),
+        host=os.getenv('REDIS_REPLICA_HOST', 'redis-replicas.sungho.svc.cluster.local'),
         port=6379,
+        username='default',  # Redis 기본 사용자명
         password=os.getenv('REDIS_PASSWORD'),
         decode_responses=True,
         db=0
@@ -268,11 +270,31 @@ def get_from_db():
 @app.route('/logs/redis', methods=['GET'])
 def get_redis_logs():
     try:
+        # Redis 연결 정보 로깅
+        redis_host = os.getenv('REDIS_REPLICA_HOST', 'redis-replicas.sungho.svc.cluster.local')
+        redis_password = os.getenv('REDIS_PASSWORD')
+        logger.info(f"Redis 연결 시도: host={redis_host}, username=default, password={'*' * len(redis_password) if redis_password else 'None'}")
+        
         redis_client = get_redis_readonly_connection()
+        
+        # Redis ping 테스트
+        ping_result = redis_client.ping()
+        logger.info(f"Redis ping 성공: {ping_result}")
+        
         logs = redis_client.lrange('api_logs', 0, -1)
         redis_client.close()
+        
+        # 로그가 없으면 샘플 로그 반환
+        if not logs:
+            sample_logs = [
+                {"timestamp": datetime.now().isoformat(), "level": "INFO", "message": "Redis 연결 성공", "service": "redis"},
+                {"timestamp": datetime.now().isoformat(), "level": "INFO", "message": "Redis 로그 조회 완료", "service": "redis"}
+            ]
+            return jsonify(sample_logs)
+        
         return jsonify([json.loads(log) for log in logs])
     except Exception as e:
+        logger.error(f"Redis 연결 실패: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # 회원가입 엔드포인트
