@@ -59,12 +59,20 @@
         </div>
 
         <div class="section">
-          <h2>메시지 검색</h2>
+          <h2>메시지 관리</h2>
+          <div class="message-input">
+            <input v-model="newMessage" placeholder="새 메시지 입력" @keyup.enter="saveMessage">
+            <button @click="saveMessage">메시지 저장</button>
+          </div>
+          
           <div class="search-section">
             <input v-model="searchQuery" placeholder="메시지 검색">
+            <input v-model="userFilter" placeholder="유저명 필터 (선택사항)">
             <button @click="searchMessages">검색</button>
             <button @click="getAllMessages" class="view-all-btn">전체 메시지 보기</button>
+            <button @click="getMyMessages" class="my-messages-btn">내 메시지 보기</button>
           </div>
+          
           <div v-if="searchResults.length > 0" class="search-results">
             <h3>검색 결과:</h3>
             <table>
@@ -81,7 +89,7 @@
                   <td>{{ result.id }}</td>
                   <td>{{ result.message }}</td>
                   <td>{{ formatDate(result.created_at) }}</td>
-                  <td>{{ result.user_id || '없음' }}</td>
+                  <td>{{ result.username || '알 수 없음' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -129,7 +137,9 @@ export default {
       registerPassword: '',
       confirmPassword: '',
       currentUser: null,
-      searchResults: []
+      searchResults: [],
+      newMessage: '',
+      userFilter: ''
     }
   },
   methods: {
@@ -227,30 +237,96 @@ export default {
       }
     },
 
-    // 메시지 검색 기능
-    async searchMessages() {
+    // 새 메시지 저장
+    async saveMessage() {
+      if (!this.newMessage.trim()) {
+        alert('메시지를 입력해주세요.');
+        return;
+      }
+      
       try {
         this.loading = true;
-        const response = await axios.get(`${API_BASE_URL}/db/messages/search`, {
-          params: { q: this.searchQuery }
+        const response = await axios.post(`${API_BASE_URL}/messages`, {
+          message: this.newMessage
         });
-        this.searchResults = response.data;
+        
+        if (response.data.status === 'success') {
+          alert('메시지가 저장되었습니다.');
+          this.newMessage = '';
+          // 저장 후 전체 메시지 새로고침
+          await this.getAllMessages();
+        } else {
+          alert(response.data.message || '메시지 저장에 실패했습니다.');
+        }
       } catch (error) {
-        console.error('검색 실패:', error);
-        alert('검색에 실패했습니다.');
+        console.error('메시지 저장 실패:', error);
+        alert('메시지 저장에 실패했습니다.');
       } finally {
         this.loading = false;
       }
     },
 
-    // 전체 메시지 조회
+    // 메시지 검색 기능 (개선됨)
+    async searchMessages() {
+      try {
+        this.loading = true;
+        const params = { q: this.searchQuery };
+        if (this.userFilter.trim()) {
+          params.user = this.userFilter;
+        }
+        
+        const response = await axios.get(`${API_BASE_URL}/messages/search`, { params });
+        
+        if (response.data.status === 'success') {
+          this.searchResults = response.data.data;
+        } else {
+          this.searchResults = [];
+          alert(response.data.message || '검색에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('검색 실패:', error);
+        alert('검색에 실패했습니다.');
+        this.searchResults = [];
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // 전체 메시지 조회 (개선됨)
     async getAllMessages() {
       try {
         this.loading = true;
-        const response = await axios.get(`${API_BASE_URL}/db/messages`);
-        this.searchResults = response.data;
+        const response = await axios.get(`${API_BASE_URL}/messages`);
+        
+        if (response.data.status === 'success') {
+          this.searchResults = response.data.data;
+        } else {
+          this.searchResults = [];
+          alert(response.data.message || '메시지 로드에 실패했습니다.');
+        }
       } catch (error) {
         console.error('전체 메시지 로드 실패:', error);
+        this.searchResults = [];
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // 내 메시지만 조회
+    async getMyMessages() {
+      try {
+        this.loading = true;
+        const response = await axios.get(`${API_BASE_URL}/messages/user/${this.currentUser}`);
+        
+        if (response.data.status === 'success') {
+          this.searchResults = response.data.data;
+        } else {
+          this.searchResults = [];
+          alert(response.data.message || '내 메시지 로드에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('내 메시지 로드 실패:', error);
+        this.searchResults = [];
       } finally {
         this.loading = false;
       }
@@ -459,5 +535,36 @@ li {
 
 .view-all-btn:hover {
   background-color: #5a6268;
+}
+
+.message-input {
+  margin: 15px 0;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 5px;
+}
+
+.message-input input {
+  width: 300px;
+  margin-right: 10px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+}
+
+.message-input button {
+  background-color: #28a745;
+}
+
+.message-input button:hover {
+  background-color: #218838;
+}
+
+.my-messages-btn {
+  background-color: #17a2b8;
+}
+
+.my-messages-btn:hover {
+  background-color: #138496;
 }
 </style> 

@@ -15,8 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: ghcr.io/hadonas/aks-demo-frontend:local
-        # imagePullPolicy: Never
+        image: aks-demo-frontend:local
         ports:
         - containerPort: 80
 ---

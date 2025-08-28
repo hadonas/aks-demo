@@ -319,30 +319,129 @@ def logout():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# 메시지 저장 엔드포인트
+@app.route('/messages', methods=['POST'])
+@login_required
+def save_message():
+    try:
+        data = request.json
+        message_text = data.get('message', '')
+        user_id = session['user_id']
+        
+        if not message_text:
+            return jsonify({"status": "error", "message": "메시지 내용은 필수입니다"}), 400
+        
+        # DB에 메시지 저장
+        db = get_db_connection()
+        cursor = db.cursor()
+        sql = "INSERT INTO messages (user_id, message) VALUES (%s, %s)"
+        cursor.execute(sql, (user_id, message_text))
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        logger.info(f"메시지 저장 성공: 사용자 {user_id}, 메시지: {message_text}")
+        return jsonify({"status": "success", "message": "메시지가 저장되었습니다"})
+        
+    except Exception as e:
+        logger.error(f"메시지 저장 오류: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # 메시지 검색 (DB에서 검색)
-@app.route('/db/messages/search', methods=['GET'])
+@app.route('/messages/search', methods=['GET'])
 @login_required
 def search_messages():
     try:
         query = request.args.get('q', '')
-        user_id = session['user_id']
+        user_filter = request.args.get('user', '')  # 특정 유저로 필터링
         
-        # DB에서 검색
+        # DB에서 검색 (JOIN으로 유저명 포함)
         db = get_db_connection()
         cursor = db.cursor(dictionary=True)
-        sql = "SELECT * FROM messages WHERE message LIKE %s ORDER BY created_at DESC"
-        cursor.execute(sql, (f"%{query}%",))
+        
+        if user_filter:
+            # 특정 유저의 메시지만 검색
+            sql = """
+                SELECT m.id, m.message, m.created_at, u.username 
+                FROM messages m 
+                JOIN users u ON m.user_id = u.id 
+                WHERE m.message LIKE %s AND u.username LIKE %s 
+                ORDER BY m.created_at DESC
+            """
+            cursor.execute(sql, (f"%{query}%", f"%{user_filter}%"))
+        else:
+            # 모든 메시지 검색
+            sql = """
+                SELECT m.id, m.message, m.created_at, u.username 
+                FROM messages m 
+                JOIN users u ON m.user_id = u.id 
+                WHERE m.message LIKE %s 
+                ORDER BY m.created_at DESC
+            """
+            cursor.execute(sql, (f"%{query}%",))
+        
         results = cursor.fetchall()
         cursor.close()
         db.close()
         
-        # 검색 이력을 Kafka에 저장
-        async_log_api_stats('/db/messages/search', 'GET', 'success', user_id)
+        logger.info(f"메시지 검색 성공: 쿼리={query}, 유저필터={user_filter}, 결과수={len(results)}")
+        return jsonify({"status": "success", "data": results})
         
-        return jsonify(results)
     except Exception as e:
-        if 'user_id' in session:
-            async_log_api_stats('/db/messages/search', 'GET', 'error', session['user_id'])
+        logger.error(f"메시지 검색 오류: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 유저별 메시지 조회
+@app.route('/messages/user/<username>', methods=['GET'])
+@login_required
+def get_user_messages(username):
+    try:
+        # DB에서 특정 유저의 메시지 조회
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+        sql = """
+            SELECT m.id, m.message, m.created_at, u.username 
+            FROM messages m 
+            JOIN users u ON m.user_id = u.id 
+            WHERE u.username = %s 
+            ORDER BY m.created_at DESC
+        """
+        cursor.execute(sql, (username,))
+        results = cursor.fetchall()
+        cursor.close()
+        db.close()
+        
+        logger.info(f"유저별 메시지 조회 성공: {username}, 메시지수={len(results)}")
+        return jsonify({"status": "success", "data": results})
+        
+    except Exception as e:
+        logger.error(f"유저별 메시지 조회 오류: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 모든 메시지 조회 (관리자용)
+@app.route('/messages', methods=['GET'])
+@login_required
+def get_all_messages():
+    try:
+        # DB에서 모든 메시지 조회 (JOIN으로 유저명 포함)
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+        sql = """
+            SELECT m.id, m.message, m.created_at, u.username 
+            FROM messages m 
+            JOIN users u ON m.user_id = u.id 
+            ORDER BY m.created_at DESC
+        """
+        cursor.execute(sql)
+        results = cursor.fetchall()
+        cursor.close()
+        db.close()
+        
+        logger.info(f"전체 메시지 조회 성공: 메시지수={len(results)}")
+        return jsonify({"status": "success", "data": results})
+        
+    except Exception as e:
+        logger.error(f"전체 메시지 조회 오류: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # Kafka 로그 조회 엔드포인트
