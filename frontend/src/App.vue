@@ -28,8 +28,6 @@
       </div>
 
       <div class="container">
-
-
         <div class="section">
           <h2>Redis 로그</h2>
           <button @click="getRedisLogs">로그 조회</button>

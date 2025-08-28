@@ -440,10 +440,15 @@ def save_message():
         cursor.close()
         db.close()
         
+        # Redis 로깅 추가
+        log_to_redis('message_save', f"Message saved by {session.get('username', 'unknown')}: {message_text[:30]}...")
+        
         logger.info(f"메시지 저장 성공: 사용자 {session.get('username', 'unknown')}, 메시지: {message_text}")
         return jsonify({"status": "success", "message": "메시지가 저장되었습니다"})
         
     except Exception as e:
+        # 에러 시에도 Redis 로깅
+        log_to_redis('message_save_error', f"Error saving message: {str(e)}")
         logger.error(f"메시지 저장 오류: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -484,10 +489,15 @@ def search_messages():
         cursor.close()
         db.close()
         
+        # Redis 로깅 추가
+        log_to_redis('message_search', f"Search query: '{query}', user_filter: '{user_filter}', results: {len(results)}")
+        
         logger.info(f"메시지 검색 성공: 쿼리={query}, 유저필터={user_filter}, 결과수={len(results)}")
         return jsonify({"status": "success", "data": results})
         
     except Exception as e:
+        # 에러 시에도 Redis 로깅
+        log_to_redis('message_search_error', f"Error searching messages: {str(e)}")
         logger.error(f"메시지 검색 오류: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -511,10 +521,15 @@ def get_user_messages(username):
         cursor.close()
         db.close()
         
+        # Redis 로깅 추가
+        log_to_redis('user_messages', f"User messages retrieved for: {username}, count: {len(results)}")
+        
         logger.info(f"유저별 메시지 조회 성공: {username}, 메시지수={len(results)}")
         return jsonify({"status": "success", "data": results})
         
     except Exception as e:
+        # 에러 시에도 Redis 로깅
+        log_to_redis('user_messages_error', f"Error retrieving user messages for {username}: {str(e)}")
         logger.error(f"유저별 메시지 조회 오류: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -537,10 +552,15 @@ def get_all_messages():
         cursor.close()
         db.close()
         
+        # Redis 로깅 추가
+        log_to_redis('all_messages', f"All messages retrieved, count: {len(results)}")
+        
         logger.info(f"전체 메시지 조회 성공: 메시지수={len(results)}")
         return jsonify({"status": "success", "data": results})
         
     except Exception as e:
+        # 에러 시에도 Redis 로깅
+        log_to_redis('all_messages_error', f"Error retrieving all messages: {str(e)}")
         logger.error(f"전체 메시지 조회 오류: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
