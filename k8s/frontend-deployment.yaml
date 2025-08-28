@@ -24,7 +24,7 @@ spec:
         env:
         # OpenTelemetry 환경변수
         - name: VUE_APP_OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4318/v1/traces"
+          value: "http://collector.lgtm.20.249.154.255.nip.io/v1/traces"
         - name: VUE_APP_OTEL_SERVICE_NAME
           value: "aks-demo-frontend"
         - name: VUE_APP_OTEL_SERVICE_VERSION
@@ -44,4 +44,3 @@ spec:
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30083

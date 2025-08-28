@@ -22,9 +22,9 @@ spec:
         - containerPort: 5000
         env:
         - name: MARIADB_HOST
-          value: "sungho-mariadb"
+          value: "mariadb"
         - name: MARIADB_USER
-          value: "testuser"
+          value: "root"
         - name: MARIADB_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -55,7 +55,7 @@ spec:
               key: FLASK_SECRET_KEY
         # OpenTelemetry 환경변수
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"
+          value: "http://collector.lgtm.20.249.154.255.nip.io"
         - name: OTEL_SERVICE_NAME
           value: "aks-demo-backend"
         - name: OTEL_SERVICE_VERSION

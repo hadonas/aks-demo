@@ -16,9 +16,12 @@ import traceback
 # OpenTelemetry imports
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.mysql import MySQLInstrumentor
@@ -49,12 +52,31 @@ def setup_opentelemetry():
     span_processor = BatchSpanProcessor(otlp_exporter)
     trace.get_tracer_provider().add_span_processor(span_processor)
     
+    # LoggerProvider 설정 (자동계측용)
+    logger_provider = LoggerProvider(resource=resource)
+    
+    # OTLP Log Exporter 설정
+    log_exporter = OTLPLogExporter(
+        endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"),
+        insecure=True
+    )
+    
+    # Log Processor 설정
+    log_processor = BatchLogRecordProcessor(log_exporter)
+    logger_provider.add_log_record_processor(log_processor)
+    
     # 자동 계측 설정
     FlaskInstrumentor().instrument()
     RequestsInstrumentor().instrument()
     MySQLInstrumentor().instrument()
     RedisInstrumentor().instrument()
-    LoggingInstrumentor().instrument()
+    
+    # LoggingInstrumentor 설정 (자동계측으로 로그 전송)
+    LoggingInstrumentor().instrument(
+        set_logging_format=True,
+        logging_format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    
     URLLib3Instrumentor().instrument()
     
     return tracer
@@ -65,6 +87,9 @@ tracer = setup_opentelemetry()
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # 세션을 위한 credentials 지원
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # 세션을 위한 시크릿 키
+
+# 자동계측 로그 테스트
+logging.info("🚀 AKS Demo Backend 애플리케이션 시작 - 자동계측 활성화됨")
 
 # 로깅 설정
 logging.basicConfig(
