@@ -47,7 +47,7 @@
         <div class="section">
           <h2>메시지 관리</h2>
           <div class="message-input">
-            <input v-model="newMessage" placeholder="새 메시지 입력" @keydown.enter.prevent="saveMessage" :disabled="saving">
+            <input v-model="newMessage" placeholder="새 메시지 입력" @keyup.enter="saveMessage" :disabled="saving">
             <button @click="saveMessage" :disabled="saving">
               {{ saving ? '저장 중...' : '메시지 저장' }}
             </button>

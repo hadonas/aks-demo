@@ -4,27 +4,27 @@ import App from './App.vue'
 // OpenTelemetry imports
 import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { Resource } from '@opentelemetry/resources'
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch'
 import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request'
 import { registerInstrumentations } from '@opentelemetry/instrumentation'
-import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics'
 
 // OpenTelemetry 설정
 function setupOpenTelemetry() {
   try {
-    // 외부 Collector 엔드포인트
-    const otlpEndpoint = process.env.VUE_APP_OTEL_EXPORTER_OTLP_ENDPOINT || 'http://collector.lgtm.20.249.154.255.nip.io'
-    
+    // OpenTelemetry Collector 엔드포인트
+    let otlpEndpoint = process.env.VUE_APP_OTEL_EXPORTER_OTLP_ENDPOINT || 'http://collector.lgtm.20.249.154.255.nip.io'
+
     // 리소스 설정
     const resource = new Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'aks-demo-frontend',
-      [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
-      [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: 'production',
-      [SemanticResourceAttributes.SERVICE_INSTANCE_ID]: 'frontend-1'
+      'service.name': 'aks-demo-frontend',
+      'service.version': '1.0.0',
+      'deployment.environment': 'production',
+      'service.instance.id': `frontend-${Date.now()}`,
+      'service.namespace': 'aks-demo',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.language': 'webjs'
     })
 
     // TracerProvider 설정
@@ -32,33 +32,24 @@ function setupOpenTelemetry() {
       resource: resource
     })
 
-    // OTLP Trace Exporter 설정
+    // OTLP Trace Exporter 설정 (기본 헤더 사용)
     const traceExporter = new OTLPTraceExporter({
-      url: otlpEndpoint
+      url: `${otlpEndpoint}/v1/traces`,
+      timeoutMillis: 10000
     })
 
-    // Span Processor 설정
-    tracerProvider.addSpanProcessor(new BatchSpanProcessor(traceExporter))
+    // Span Processor 설정 (배치 최적화)
+    tracerProvider.addSpanProcessor(new BatchSpanProcessor(traceExporter, {
+      maxQueueSize: 1000,
+      maxExportBatchSize: 100,
+      exportTimeoutMillis: 10000,
+      scheduledDelayMillis: 2000
+    }))
 
     // TracerProvider 등록
     tracerProvider.register()
 
-    // Metrics 설정
-    const metricExporter = new OTLPMetricExporter({
-      url: otlpEndpoint
-    })
-
-    const metricReader = new PeriodicExportingMetricReader({
-      exporter: metricExporter,
-      exportIntervalMillis: 5000 // 5초마다 메트릭 전송
-    })
-
-    const meterProvider = new MeterProvider({
-      resource: resource,
-      readers: [metricReader]
-    })
-
-    // 자동 계측 설정
+    // 자동 계측 설정 (트레이싱)
     registerInstrumentations({
       instrumentations: [
         new FetchInstrumentation({
@@ -75,10 +66,8 @@ function setupOpenTelemetry() {
       ]
     })
 
-    console.log('OpenTelemetry initialized successfully with external collector')
-    return { tracerProvider, meterProvider }
+    return { tracerProvider }
   } catch (error) {
-    console.error('Failed to initialize OpenTelemetry:', error)
     return null
   }
 }
