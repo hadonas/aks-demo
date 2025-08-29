@@ -14,11 +14,14 @@ import sys
 import traceback
 
 # OpenTelemetry imports
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+from opentelemetry import trace, metrics
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
@@ -28,6 +31,14 @@ from opentelemetry.instrumentation.mysql import MySQLInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
+# Prometheus 메트릭 정의
+REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
+REQUEST_DURATION = Histogram('http_request_duration_seconds', 'HTTP request duration', ['method', 'endpoint'])
+ACTIVE_USERS = Gauge('active_users_total', 'Total active users')
+DB_CONNECTIONS = Gauge('database_connections_active', 'Active database connections')
+REDIS_CONNECTIONS = Gauge('redis_connections_active', 'Active Redis connections')
 
 # OpenTelemetry 설정
 def setup_opentelemetry():
@@ -35,30 +46,45 @@ def setup_opentelemetry():
     resource = Resource.create({
         "service.name": "aks-demo-backend",
         "service.version": "1.0.0",
-        "deployment.environment": os.getenv("ENVIRONMENT", "development")
+        "deployment.environment": os.getenv("ENVIRONMENT", "production"),
+        "service.instance.id": os.getenv("HOSTNAME", "backend-1")
     })
     
     # TracerProvider 설정
     trace.set_tracer_provider(TracerProvider(resource=resource))
     tracer = trace.get_tracer(__name__)
     
-    # OTLP Exporter 설정
+    # OTLP Exporter 설정 (외부 Collector 사용)
+    otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.lgtm.20.249.154.255.nip.io")
     otlp_exporter = OTLPSpanExporter(
-        endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"),
-        insecure=True
+        endpoint=f"{otlp_endpoint}/v1/traces"
     )
     
     # Span Processor 설정
     span_processor = BatchSpanProcessor(otlp_exporter)
     trace.get_tracer_provider().add_span_processor(span_processor)
     
+    # Metrics 설정
+    metric_exporter = OTLPMetricExporter(
+        endpoint=f"{otlp_endpoint}/v1/metrics"
+    )
+    
+    metric_reader = PeriodicExportingMetricReader(
+        exporter=metric_exporter,
+        export_interval_millis=5000  # 5초마다 메트릭 전송
+    )
+    
+    metrics.set_meter_provider(MeterProvider(
+        resource=resource,
+        metric_readers=[metric_reader]
+    ))
+    
     # LoggerProvider 설정 (자동계측용)
     logger_provider = LoggerProvider(resource=resource)
     
     # OTLP Log Exporter 설정
     log_exporter = OTLPLogExporter(
-        endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"),
-        insecure=True
+        endpoint=f"{otlp_endpoint}/v1/logs"
     )
     
     # Log Processor 설정
@@ -605,7 +631,12 @@ def get_kafka_logs():
         print(f"Kafka log retrieval error: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 요청 로깅 미들웨어
+# 메트릭 엔드포인트
+@app.route('/metrics')
+def metrics_endpoint():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
+# 요청 로깅 및 메트릭 미들웨어
 @app.before_request
 def log_request_info():
     logger.info("=== 새로운 요청 ===")
@@ -618,6 +649,13 @@ def log_request_info():
 
 @app.after_request
 def log_response_info(response):
+    # 메트릭 업데이트
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.path,
+        status=str(response.status_code)
+    ).inc()
+    
     logger.info(f"응답 상태: {response.status_code}")
     logger.info("=== 요청 완료 ===")
     return response
