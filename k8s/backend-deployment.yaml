@@ -58,12 +58,16 @@ spec:
           value: "http://collector.lgtm.20.249.154.255.nip.io"
         - name: OTEL_SERVICE_NAME
           value: "aks-demo-backend"
-        - name: OTEL_SERVICE_VERSION
-          value: "1.0.0"
+        # - name: OTEL_SERVICE_VERSION
+        #   value: "1.0.0"
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "service.name=aks-demo-backend,service.version=1.0.0,deployment.environment=production"
+          value: "service.name=aks-demo-backend,deployment.environment=production"
         - name: OTEL_EXPORTER_OTLP_PROTOCOL
-          value: "grpc"
+          value: "http/protobuf"
+        - name: OTEL_LOG_LEVEL
+          value: "debug"
+        - name: OTEL_PYTHON_LOG_CORRELATION
+          value: "true"
 ---
 apiVersion: v1
 kind: Service

@@ -4,6 +4,7 @@ redis
 kafka-python
 mysql-connector-python
 werkzeug
+requests
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-exporter-otlp

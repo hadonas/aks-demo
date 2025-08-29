@@ -12,7 +12,7 @@ RUN npm install
 COPY . .
 
 # Build arguments for OpenTelemetry
-ARG VUE_APP_OTEL_EXPORTER_OTLP_ENDPOINT=http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4318/v1/traces
+ARG VUE_APP_OTEL_EXPORTER_OTLP_ENDPOINT=http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317/v1/traces
 ARG VUE_APP_OTEL_SERVICE_NAME=aks-demo-frontend
 ARG VUE_APP_OTEL_SERVICE_VERSION=1.0.0
 ARG VUE_APP_OTEL_ENVIRONMENT=production

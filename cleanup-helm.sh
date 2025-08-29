@@ -12,10 +12,6 @@ helm uninstall mariadb -n sungho --ignore-not-found=true
 echo "💾 PVC 정리 중..."
 kubectl get pvc -n sungho | grep -E "(redis|kafka|mariadb)" | awk '{print $1}' | xargs -r kubectl delete pvc -n sungho
 
-# 3. 네임스페이스 정리 (선택사항)
-echo "🏷️ 네임스페이스 정리 중..."
-kubectl delete namespace sungho --ignore-not-found=true
-
 echo "✅ Helm 정리 완료!"
 echo ""
 echo "📊 현재 상태:"

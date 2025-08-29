@@ -2,6 +2,69 @@
   <div id="app">
     <h1>K8s 마이크로서비스 데모</h1>
     
+    <!-- 시스템 모니터링 섹션 (로그인 불필요) -->
+    <div class="section">
+      <h2>🔍 시스템 모니터링</h2>
+      
+      <!-- Health Check -->
+      <div class="monitoring-subsection">
+        <h3>Health Check</h3>
+        <button @click="checkHealth" :disabled="loading" class="health-btn">
+          {{ loading ? '확인 중...' : '헬스 체크' }}
+        </button>
+        <div v-if="healthStatus" class="health-result">
+          <div class="health-card">
+            <h4>시스템 상태: <span :class="healthStatusClass">{{ healthStatus.status }}</span></h4>
+            <p><strong>타임스탬프:</strong> {{ formatDate(healthStatus.timestamp) }}</p>
+            <div v-if="healthStatus.opentelemetry">
+              <h5>OpenTelemetry 상태:</h5>
+              <ul>
+                <li><strong>Tracer Provider:</strong> {{ healthStatus.opentelemetry.tracer_provider }}</li>
+                <li><strong>Meter Provider:</strong> {{ healthStatus.opentelemetry.meter_provider }}</li>
+                <li><strong>Endpoint:</strong> {{ healthStatus.opentelemetry.endpoint }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OpenTelemetry Test -->
+      <div class="monitoring-subsection">
+        <h3>OpenTelemetry 테스트</h3>
+        <button @click="testOpenTelemetry" :disabled="loading" class="otel-btn">
+          {{ loading ? '테스트 중...' : 'OpenTelemetry 테스트' }}
+        </button>
+        <div v-if="otelTestResult" class="otel-result">
+          <div class="otel-card" :class="otelTestResult.status === 'success' ? 'success' : 'error'">
+            <h4>테스트 결과: <span>{{ otelTestResult.status }}</span></h4>
+            <p><strong>메시지:</strong> {{ otelTestResult.message }}</p>
+            <p><strong>타임스탬프:</strong> {{ formatDate(otelTestResult.timestamp) }}</p>
+            <p v-if="otelTestResult.endpoint"><strong>엔드포인트:</strong> {{ otelTestResult.endpoint }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Test -->
+      <div class="monitoring-subsection">
+        <h3>로그 전송 테스트</h3>
+        <div class="log-test-input">
+          <input v-model="logTestMessage" placeholder="테스트 로그 메시지" maxlength="100">
+          <button @click="testLogs" :disabled="loading" class="log-btn">
+            {{ loading ? '전송 중...' : '로그 테스트' }}
+          </button>
+        </div>
+        <div v-if="logTestResult" class="log-result">
+          <div class="log-card" :class="logTestResult.status === 'success' ? 'success' : 'error'">
+            <h4>로그 테스트 결과: <span>{{ logTestResult.status }}</span></h4>
+            <p><strong>메시지:</strong> {{ logTestResult.message }}</p>
+            <p><strong>타임스탬프:</strong> {{ formatDate(logTestResult.timestamp) }}</p>
+            <p v-if="logTestResult.logs_sent"><strong>전송된 로그:</strong> {{ logTestResult.logs_sent.join(', ') }}</p>
+            <p v-if="logTestResult.test_message"><strong>테스트 메시지:</strong> {{ logTestResult.test_message }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 로그인/회원가입 섹션 -->
     <div class="section" v-if="!isLoggedIn">
       <div v-if="!showRegister">
@@ -28,6 +91,7 @@
       </div>
 
       <div class="container">
+
         <div class="section">
           <h2>Redis 로그</h2>
           <button @click="getRedisLogs">로그 조회</button>
@@ -112,7 +176,20 @@ export default {
       currentUser: null,
       searchResults: [],
       newMessage: '',
-      userFilter: ''
+      userFilter: '',
+      
+      // 시스템 모니터링 관련
+      healthStatus: null,
+      otelTestResult: null,
+      logTestResult: null,
+      logTestMessage: ''
+    }
+  },
+  computed: {
+    // Health status에 따른 CSS 클래스
+    healthStatusClass() {
+      if (!this.healthStatus) return '';
+      return this.healthStatus.status === 'healthy' ? 'status-healthy' : 'status-unhealthy';
     }
   },
   methods: {
@@ -122,7 +199,75 @@ export default {
       return date.toLocaleString();
     },
     
+    // Health Check 실행
+    async checkHealth() {
+      try {
+        this.loading = true;
+        const response = await axios.get(`${API_BASE_URL}/health`);
+        this.healthStatus = response.data;
+        console.log('Health check 성공:', this.healthStatus);
+      } catch (error) {
+        console.error('Health check 실패:', error);
+        this.healthStatus = {
+          status: 'unhealthy',
+          timestamp: new Date().toISOString(),
+          error: error.response ? error.response.data.message : error.message
+        };
+        alert('Health check에 실패했습니다: ' + (error.response ? error.response.data.message : error.message));
+      } finally {
+        this.loading = false;
+      }
+    },
 
+    // OpenTelemetry 테스트 실행
+    async testOpenTelemetry() {
+      try {
+        this.loading = true;
+        const response = await axios.post(`${API_BASE_URL}/otel/test`);
+        this.otelTestResult = response.data;
+        console.log('OpenTelemetry 테스트 성공:', this.otelTestResult);
+        
+        if (this.otelTestResult.status === 'success') {
+          alert('OpenTelemetry 테스트가 성공적으로 완료되었습니다! 데이터가 collector로 전송되었습니다.');
+        }
+      } catch (error) {
+        console.error('OpenTelemetry 테스트 실패:', error);
+        this.otelTestResult = {
+          status: 'error',
+          message: error.response ? error.response.data.message : error.message,
+          timestamp: new Date().toISOString()
+        };
+        alert('OpenTelemetry 테스트에 실패했습니다: ' + (error.response ? error.response.data.message : error.message));
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // 로그 테스트 실행
+    async testLogs() {
+      try {
+        this.loading = true;
+        const response = await axios.post(`${API_BASE_URL}/logs/test`, {
+          message: this.logTestMessage || 'Frontend test log message'
+        });
+        this.logTestResult = response.data;
+        console.log('로그 테스트 성공:', this.logTestResult);
+        
+        if (this.logTestResult.status === 'success') {
+          alert('로그 테스트가 성공적으로 완료되었습니다! Loki에서 로그를 확인할 수 있습니다.');
+        }
+      } catch (error) {
+        console.error('로그 테스트 실패:', error);
+        this.logTestResult = {
+          status: 'error',
+          message: error.response ? error.response.data.message : error.message,
+          timestamp: new Date().toISOString()
+        };
+        alert('로그 테스트에 실패했습니다: ' + (error.response ? error.response.data.message : error.message));
+      } finally {
+        this.loading = false;
+      }
+    },
 
     // Redis에 저장된 API 호출 로그 조회
     async getRedisLogs() {
@@ -495,5 +640,138 @@ li {
 
 .my-messages-btn:hover {
   background-color: #138496;
+}
+
+/* 시스템 모니터링 관련 스타일 */
+.monitoring-subsection {
+  margin-bottom: 25px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 5px;
+  border-left: 4px solid #007bff;
+}
+
+.monitoring-subsection h3 {
+  margin-top: 0;
+  color: #495057;
+}
+
+.health-btn {
+  background-color: #28a745;
+}
+
+.health-btn:hover {
+  background-color: #218838;
+}
+
+.otel-btn {
+  background-color: #6f42c1;
+}
+
+.otel-btn:hover {
+  background-color: #5a32a3;
+}
+
+.health-result, .otel-result {
+  margin-top: 15px;
+}
+
+.health-card, .otel-card {
+  padding: 15px;
+  border-radius: 5px;
+  border: 1px solid #dee2e6;
+  background-color: #ffffff;
+}
+
+.health-card.success, .otel-card.success {
+  border-left: 4px solid #28a745;
+  background-color: #f8fff9;
+}
+
+.health-card.error, .otel-card.error {
+  border-left: 4px solid #dc3545;
+  background-color: #fff8f8;
+}
+
+.status-healthy {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.status-unhealthy {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.health-card ul, .otel-card ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.health-card li, .otel-card li {
+  margin: 5px 0;
+  border-bottom: none;
+  padding: 2px 0;
+}
+
+.health-card h4, .otel-card h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.health-card h5 {
+  margin: 10px 0 5px 0;
+  color: #6c757d;
+}
+
+/* 로그 테스트 관련 스타일 */
+.log-btn {
+  background-color: #fd7e14;
+}
+
+.log-btn:hover {
+  background-color: #e76a05;
+}
+
+.log-test-input {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  align-items: center;
+}
+
+.log-test-input input {
+  flex: 1;
+  max-width: 300px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+}
+
+.log-result {
+  margin-top: 15px;
+}
+
+.log-card {
+  padding: 15px;
+  border-radius: 5px;
+  border: 1px solid #dee2e6;
+  background-color: #ffffff;
+}
+
+.log-card.success {
+  border-left: 4px solid #fd7e14;
+  background-color: #fff8f0;
+}
+
+.log-card.error {
+  border-left: 4px solid #dc3545;
+  background-color: #fff8f8;
+}
+
+.log-card h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #495057;
 }
 </style> 
