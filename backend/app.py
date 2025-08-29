@@ -42,27 +42,35 @@ ACTIVE_USERS = Gauge('active_users_total', 'Total active users')
 DB_CONNECTIONS = Gauge('database_connections_active', 'Active database connections')
 REDIS_CONNECTIONS = Gauge('redis_connections_active', 'Active Redis connections')
 
+# 자동계측만 사용 (수동 메트릭 제거)
+
 # OpenTelemetry 설정
 def setup_opentelemetry():
-    # 리소스 설정
+    # 리소스 설정 (OpenTelemetry 표준 속성)
     resource = Resource.create({
         "service.name": "aks-demo-backend",
         "service.version": "1.0.0",
         "deployment.environment": os.getenv("ENVIRONMENT", "production"),
-        "service.instance.id": os.getenv("HOSTNAME", "backend-1")
+        "service.instance.id": os.getenv("HOSTNAME", "backend-1"),
+        "service.namespace": "aks-demo",
+        "container.name": "backend",
+        "telemetry.sdk.name": "opentelemetry",
+        "telemetry.sdk.language": "python"
     })
     
+    
     # TracerProvider 설정
-    trace.set_tracer_provider(TracerProvider(resource=resource))
+    tracer_provider = TracerProvider(resource=resource)
+    trace.set_tracer_provider(tracer_provider)
     tracer = trace.get_tracer(__name__)
+    
+    
     
     # OTLP Exporter 설정 (외부 Collector 사용) - HTTP 사용
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.lgtm.20.249.154.255.nip.io")
     
     # 디버깅 로그
-    print(f"🔧 OpenTelemetry 설정 시작...")
-    print(f"📡 OTLP Endpoint: {otlp_endpoint}")
-    print(f"🏷️  Service Name: aks-demo-backend")
+
     print(f"🌍 Environment: {os.getenv('ENVIRONMENT', 'production')}")
     
     # Collector 연결 테스트
@@ -70,67 +78,73 @@ def setup_opentelemetry():
     try:
         health_url = f"{otlp_endpoint}/health"
         response = requests.get(health_url, timeout=5)
-        print(f"✅ Collector 연결 성공: {otlp_endpoint}")
+
     except Exception as e:
-        print(f"⚠️  Collector 연결 실패: {str(e)}")
-        print(f"🔄 설정된 엔드포인트를 계속 사용: {otlp_endpoint}")
+        pass
     
+    # Trace Exporter 설정 (기본 헤더 사용)
     otlp_exporter = OTLPSpanExporter(
         endpoint=f"{otlp_endpoint}/v1/traces",
-        headers={"Content-Type": "application/x-protobuf"},
         timeout=30,
     )
+
     
-    # Span Processor 설정 (배치 크기 제한)
+    # Span Processor 설정 (자동계측 최적화)
     span_processor = BatchSpanProcessor(
         otlp_exporter,
-        max_queue_size=512,
-        max_export_batch_size=128,
+        max_queue_size=2048,        # 더 큰 큐 크기
+        max_export_batch_size=512,  # 더 큰 배치 크기  
         export_timeout_millis=30000,
-        schedule_delay_millis=5000
+        schedule_delay_millis=5000  # 5초마다 배치 전송
     )
-    trace.get_tracer_provider().add_span_processor(span_processor)
+    tracer_provider.add_span_processor(span_processor)
+
     
-    # Metrics 설정 - HTTP 사용
+    # Metrics Exporter 설정 (기본 헤더 사용)
     metric_exporter = OTLPMetricExporter(
         endpoint=f"{otlp_endpoint}/v1/metrics",
-        headers={"Content-Type": "application/x-protobuf"},
         timeout=30,
     )
+
     
+    # Metric Reader 설정 (자동계측 최적화)
     metric_reader = PeriodicExportingMetricReader(
         exporter=metric_exporter,
-        export_interval_millis=5000,   # 5초마다 메트릭 전송 (더 자주)
+        export_interval_millis=10000,  # 10초마다 메트릭 전송 (자동계측에 적합)
         export_timeout_millis=30000    # 타임아웃 30초
     )
+
     
-    metrics.set_meter_provider(MeterProvider(
+    meter_provider = MeterProvider(
         resource=resource,
         metric_readers=[metric_reader]
-    ))
+    )
+    metrics.set_meter_provider(meter_provider)
+
     
     # LoggerProvider 설정 (자동계측용)
     logger_provider = LoggerProvider(resource=resource)
     
-    # OTLP Log Exporter 설정 - HTTP 사용
+    # Log Exporter 설정 (기본 헤더 사용)
     log_exporter = OTLPLogExporter(
         endpoint=f"{otlp_endpoint}/v1/logs",
-        headers={"Content-Type": "application/x-protobuf"},
         timeout=30,
     )
+
     
-    # Log Processor 설정 (배치 크기 제한)
+    # Log Processor 설정 (자동계측 최적화)
     log_processor = BatchLogRecordProcessor(
         log_exporter,
-        max_queue_size=512,
-        max_export_batch_size=128,
+        max_queue_size=2048,        # 더 큰 큐 크기
+        max_export_batch_size=512,  # 더 큰 배치 크기
         export_timeout_millis=30000,
-        schedule_delay_millis=5000
+        schedule_delay_millis=5000  # 5초마다 배치 전송
     )
     logger_provider.add_log_record_processor(log_processor)
     set_logger_provider(logger_provider)
     
-    # 자동 계측 설정 (Flask는 앱 생성 후에 별도로 설정)
+    # 자동 계측 설정 (Flask 제외 - 앱 생성 후에 별도로 설정)
+    # 데이터베이스 및 네트워크 자동계측
     RequestsInstrumentor().instrument()
     MySQLInstrumentor().instrument()
     RedisInstrumentor().instrument()
@@ -158,19 +172,16 @@ def setup_opentelemetry():
     app_logger.addHandler(otel_handler)
     app_logger.setLevel(logging.INFO)
     
-    print(f"🎯 사용 엔드포인트: {otlp_endpoint}")
-    print("✅ OpenTelemetry 설정 완료!")
-    return tracer
+
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # 세션을 위한 credentials 지원
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # 세션을 위한 시크릿 키
 
-# 기본 tracer 설정 (OpenTelemetry는 나중에 초기화)
-tracer = trace.get_tracer(__name__)
+# 자동계측 사용으로 tracer 전역 변수 제거
 
 # 자동계측 로그 테스트
-logging.info("🚀 AKS Demo Backend 애플리케이션 시작 - 자동계측 활성화됨")
+logging.info("AKS Demo Backend application started - Auto-instrumentation enabled")
 
 # 로깅 설정
 logging.basicConfig(
@@ -201,29 +212,17 @@ def test_collector_connection():
     
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.lgtm.20.249.154.255.nip.io")
     
-    logger.info("🧪 OpenTelemetry Collector 연결 테스트 시작...")
-    logger.info(f"📡 Endpoint: {otlp_endpoint}")
+
     
     # 1. 기본 HTTP 연결 테스트
     try:
         health_url = f"{otlp_endpoint}/health"
         response = requests.get(health_url, timeout=10)
-        logger.info(f"✅ Collector 연결 성공: {otlp_endpoint} (status: {response.status_code})")
     except Exception as e:
-        logger.warning(f"⚠️  Collector 연결 실패: {otlp_endpoint} - {str(e)}")
+        pass
     
-    # 2. 테스트 span 전송
-    try:
-        with tracer.start_as_current_span("test_connection_span") as span:
-            span.set_attribute("test.connection", True)
-            span.set_attribute("test.timestamp", time.time())
-            span.set_attribute("test.endpoint", otlp_endpoint)
-            span.add_event("Connection test event")
-            logger.info("📡 테스트 span 생성 및 전송 시도...")
-            time.sleep(2)  # span이 처리될 시간
-        logger.info("✅ 테스트 span 전송 완료")
-    except Exception as e:
-        logger.error(f"❌ 테스트 span 전송 실패: {str(e)}")
+    # 자동계측을 사용하므로 수동 span 생성 제거
+
     
     # 3. 강제 flush 시도
     try:
@@ -231,82 +230,58 @@ def test_collector_connection():
         tracer_provider = trace.get_tracer_provider()
         if hasattr(tracer_provider, 'force_flush'):
             tracer_provider.force_flush(timeout_millis=10000)  # 10초로 늘림
-            logger.info("🔄 TracerProvider flush 완료")
     except Exception as e:
-        logger.error(f"❌ TracerProvider flush 실패: {str(e)}")
+        pass
     
     # 4. Metrics provider flush 시도
     try:
         meter_provider = metrics.get_meter_provider()
         if hasattr(meter_provider, 'force_flush'):
             meter_provider.force_flush(timeout_millis=10000)
-            logger.info("🔄 MeterProvider flush 완료")
     except Exception as e:
-        logger.error(f"❌ MeterProvider flush 실패: {str(e)}")
+        pass
 
 # Flask 앱 시작 후 연결 테스트 실행
 def run_startup_tests():
     """앱 시작 후 실행할 테스트들"""
-    logger.info("🚀 시작 테스트 실행...")
+
     test_collector_connection()
     
     # 로그 전송 테스트
     try:
-        logger.info("📝 OpenTelemetry 로그 전송 테스트 - INFO 레벨")
-        logger.warning("⚠️ OpenTelemetry 로그 전송 테스트 - WARNING 레벨")
-        logger.error("❌ OpenTelemetry 로그 전송 테스트 - ERROR 레벨 (테스트용)")
-        logger.debug("🔍 OpenTelemetry 로그 전송 테스트 - DEBUG 레벨")
+        logger.info("OpenTelemetry log transmission test - INFO level")
+        logger.warning("OpenTelemetry log transmission test - WARNING level")
+        logger.error("OpenTelemetry log transmission test - ERROR level (for testing)")
+        logger.debug("OpenTelemetry log transmission test - DEBUG level")
         
         # 구조화된 로그 테스트
-        logger.info("🧪 구조화된 로그 테스트", extra={
+        logger.info("Structured log test", extra={
             "user_id": "test_user",
             "action": "startup_test",
             "environment": os.getenv("ENVIRONMENT", "development"),
             "service": "aks-demo-backend"
         })
         
-        print("📝 로그 전송 테스트 완료 - Loki에서 확인 가능")
+
     except Exception as e:
-        logger.error(f"❌ 로그 전송 테스트 실패: {str(e)}")
+        logger.error(f"Log transmission test failed: {str(e)}")
     
-    # 첫 번째 메트릭 전송 테스트
-    try:
-        meter = metrics.get_meter(__name__)
-        
-        # 시작 카운터 메트릭
-        test_counter = meter.create_counter("app_startup_test", description="App startup test metric")
-        test_counter.add(1, {"startup": "success", "timestamp": str(datetime.now())})
-        
-        # 시작 시간 게이지 메트릭
-        startup_time_gauge = meter.create_gauge("app_startup_timestamp", description="App startup timestamp")
-        startup_time_gauge.set(datetime.now().timestamp())
-        
-        # 애플리케이션 상태 게이지
-        app_status_gauge = meter.create_gauge("app_status", description="Application status (1=running, 0=stopped)")
-        app_status_gauge.set(1)
-        
-        logger.info("📊 시작 메트릭 전송 완료")
-    except Exception as e:
-        logger.error(f"❌ 시작 메트릭 전송 실패: {str(e)}")
+    # 자동계측 사용으로 수동 메트릭 제거
+    logger.info("Auto-instrumentation is collecting metrics")
 
 # 지연된 OpenTelemetry 초기화 함수
 def initialize_opentelemetry():
     """모든 설정이 완료된 후 OpenTelemetry를 초기화"""
-    global tracer
     try:
-        tracer = setup_opentelemetry()
-        print("🚀 OpenTelemetry 지연 초기화 성공!")
-        
+        setup_opentelemetry()
         # Flask 앱에 대한 instrumentation 적용 (앱과 모든 설정 완료 후)
         FlaskInstrumentor().instrument_app(app)
-        print("🔧 Flask instrumentation 완료!")
         
         # 초기화 후 테스트 실행
         run_startup_tests()
         
     except Exception as e:
-        print(f"❌ OpenTelemetry 지연 초기화 실패: {str(e)}")
-        print("⚠️  기본 tracer로 유지합니다.")
+        pass
 
 # 시스템 상태 모니터링 함수
 def log_system_stats():
@@ -314,22 +289,12 @@ def log_system_stats():
     try:
         # 스레드 수
         thread_count = threading.active_count()
-        logger.info(f"📊 스레드 수: {thread_count}")
+        logger.info(f"Thread count: {thread_count}")
         
-        # OpenTelemetry 메트릭으로 스레드 수 전송
-        try:
-            meter = metrics.get_meter(__name__)
-            thread_gauge = meter.create_gauge("system_threads_active", description="Active thread count")
-            thread_gauge.set(thread_count)
-            
-            # 프로세스 ID 메트릭
-            pid_gauge = meter.create_gauge("system_process_id", description="Process ID")
-            pid_gauge.set(os.getpid())
-        except Exception as e:
-            logger.debug(f"메트릭 전송 실패: {str(e)}")
+        # 자동계측 사용으로 수동 메트릭 제거
         
         # 프로세스 ID
-        logger.info(f"📊 프로세스 PID: {os.getpid()}")
+        logger.info(f"Process PID: {os.getpid()}")
         
         # Redis 연결 상태 체크
         try:
@@ -338,26 +303,18 @@ def log_system_stats():
             connected_clients = redis_info.get('connected_clients', 0)
             used_memory = redis_info.get('used_memory', 0)
             
-            logger.info(f"📊 Redis 상태 - 연결된 클라이언트: {connected_clients}")
-            logger.info(f"📊 Redis 상태 - 사용된 메모리: {redis_info.get('used_memory_human', 'N/A')}")
+            logger.info(f"Redis status - Connected clients: {connected_clients}")
+            logger.info(f"Redis status - Used memory: {redis_info.get('used_memory_human', 'N/A')}")
             
-            # Redis 상태 메트릭 전송
-            try:
-                redis_clients_gauge = meter.create_gauge("redis_connected_clients", description="Redis connected clients")
-                redis_clients_gauge.set(connected_clients)
-                
-                redis_memory_gauge = meter.create_gauge("redis_used_memory_bytes", description="Redis used memory in bytes")
-                redis_memory_gauge.set(used_memory)
-            except Exception as e:
-                logger.debug(f"Redis 메트릭 전송 실패: {str(e)}")
+            # 자동계측 사용으로 Redis 수동 메트릭 제거
                 
             redis_client.close()
         except Exception as e:
-            logger.warning(f"📊 Redis 상태 확인 실패: {str(e)}")
+            logger.warning(f"Redis status check failed: {str(e)}")
         
         # 환경 정보
-        logger.info(f"📊 환경: {os.getenv('ENVIRONMENT', 'development')}")
-        logger.info(f"📊 OpenTelemetry 엔드포인트: {os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'NOT_SET')}")
+        logger.info(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
+        logger.info(f"OpenTelemetry endpoint: {os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'NOT_SET')}")
             
     except Exception as e:
         logger.error(f"시스템 상태 모니터링 오류: {str(e)}")
@@ -376,123 +333,6 @@ threading.Timer(5.0, initialize_opentelemetry).start()
 
 # # 스레드 풀 생성
 # thread_pool = ThreadPoolExecutor(max_workers=5)
-
-# 헬스 체크 엔드포인트 (OpenTelemetry 상태 포함)
-@app.route('/health', methods=['GET'])
-def health_check():
-    """헬스 체크 및 OpenTelemetry 상태 확인"""
-    with tracer.start_as_current_span("health_check") as span:
-        span.set_attribute("http.method", "GET")
-        span.set_attribute("http.route", "/health")
-        
-        health_status = {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "opentelemetry": {
-                "tracer_provider": str(type(trace.get_tracer_provider())),
-                "meter_provider": str(type(metrics.get_meter_provider())),
-                "endpoint": os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "NOT_SET")
-            }
-        }
-        
-        span.set_attribute("health.status", "healthy")
-        span.add_event("Health check completed")
-        
-        return jsonify(health_status)
-
-# OpenTelemetry 테스트 엔드포인트
-@app.route('/otel/test', methods=['POST'])
-def test_opentelemetry():
-    """OpenTelemetry 데이터 전송을 즉시 테스트하는 엔드포인트"""
-    with tracer.start_as_current_span("manual_otel_test") as span:
-        span.set_attribute("test.type", "manual")
-        span.set_attribute("test.endpoint", "/otel/test")
-        span.add_event("Manual OpenTelemetry test triggered")
-        
-        try:
-            # 테스트 메트릭 생성
-            meter = metrics.get_meter(__name__)
-            test_counter = meter.create_counter("manual_test_counter", description="Manual test counter")
-            test_counter.add(1, {"test": "manual", "timestamp": str(datetime.now())})
-            
-            # 강제 flush
-            tracer_provider = trace.get_tracer_provider()
-            meter_provider = metrics.get_meter_provider()
-            
-            if hasattr(tracer_provider, 'force_flush'):
-                tracer_provider.force_flush(timeout_millis=5000)
-            if hasattr(meter_provider, 'force_flush'):
-                meter_provider.force_flush(timeout_millis=5000)
-            
-            span.set_attribute("test.result", "success")
-            span.add_event("Test completed successfully")
-            
-            return jsonify({
-                "status": "success",
-                "message": "OpenTelemetry test data sent",
-                "timestamp": datetime.now().isoformat(),
-                "endpoint": os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "NOT_SET")
-            })
-            
-        except Exception as e:
-            span.record_exception(e)
-            span.set_attribute("test.result", "error")
-            return jsonify({
-                "status": "error",
-                "message": str(e),
-                "timestamp": datetime.now().isoformat()
-            }), 500
-
-# 로그 테스트 엔드포인트
-@app.route('/logs/test', methods=['POST'])
-def test_logs():
-    """로그 전송을 테스트하는 엔드포인트"""
-    try:
-        data = request.json or {}
-        message = data.get('message', 'Test log message')
-        level = data.get('level', 'info').lower()
-        
-        # 다양한 레벨의 로그 전송
-        logger.info(f"🧪 수동 로그 테스트 - INFO: {message}")
-        logger.warning(f"🧪 수동 로그 테스트 - WARNING: {message}")
-        logger.error(f"🧪 수동 로그 테스트 - ERROR: {message}")
-        
-        # 구조화된 로그
-        logger.info("🧪 구조화된 로그 테스트", extra={
-            "test_message": message,
-            "test_level": level,
-            "test_timestamp": datetime.now().isoformat(),
-            "user_ip": request.remote_addr,
-            "user_agent": request.headers.get('User-Agent', 'Unknown'),
-            "service": "aks-demo-backend",
-            "test_type": "manual"
-        })
-        
-        # 로그 provider 강제 flush
-        try:
-            from opentelemetry._logs import get_logger_provider
-            logger_provider = get_logger_provider()
-            if hasattr(logger_provider, 'force_flush'):
-                logger_provider.force_flush(timeout_millis=5000)
-                logger.info("🔄 LoggerProvider flush 완료")
-        except Exception as e:
-            logger.error(f"❌ LoggerProvider flush 실패: {str(e)}")
-        
-        return jsonify({
-            "status": "success",
-            "message": "로그 테스트 완료 - Loki에서 확인 가능",
-            "timestamp": datetime.now().isoformat(),
-            "test_message": message,
-            "logs_sent": ["INFO", "WARNING", "ERROR", "STRUCTURED"]
-        })
-        
-    except Exception as e:
-        logger.error(f"❌ 로그 테스트 실패: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "timestamp": datetime.now().isoformat()
-        }), 500
 
 # MariaDB 연결 함수
 def get_db_connection():
