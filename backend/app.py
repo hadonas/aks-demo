@@ -326,7 +326,7 @@ def log_system_stats():
 #     threading.Timer(30.0, schedule_system_monitoring).start()  # 30초마다 실행
 
 # 앱 시작 후 지연된 OpenTelemetry 초기화 실행 (백그라운드 스레드에서)
-threading.Timer(5.0, initialize_opentelemetry).start()
+# threading.Timer(5.0, initialize_opentelemetry).start()
 
 # 시스템 모니터링 시작 (15초 후)
 # threading.Timer(15.0, schedule_system_monitoring).start()
@@ -975,4 +975,5 @@ def log_response_info(response):
     return response
 
 if __name__ == '__main__':
+    initialize_opentelemetry()
     app.run(host='0.0.0.0', port=5000, debug=True) 
